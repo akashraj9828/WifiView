@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key><string>local.wifiview.scan</string>
+  <key>CFBundleName</key><string>wifiview-scan</string>
+  <key>NSLocationUsageDescription</key>
+  <string>wifiview needs Location access so macOS will reveal the names of nearby WiFi networks.</string>
+  <key>NSLocationAlwaysUsageDescription</key>
+  <string>wifiview needs Location access so macOS will reveal the names of nearby WiFi networks.</string>
+  <key>NSLocationWhenInUseUsageDescription</key>
+  <string>wifiview needs Location access so macOS will reveal the names of nearby WiFi networks.</string>
+</dict>
+</plist>

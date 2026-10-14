@@ -1,0 +1,11 @@
+{
+  "name": "wifiview",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Live WiFi spectrum waterfall and signal dashboard for macOS",
+  "scripts": {
+    "start": "./run.sh",
+    "sim": "./run.sh --sim"
+  },
+  "engines": { "node": ">=18" }
+}

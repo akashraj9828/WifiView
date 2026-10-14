@@ -1,0 +1,332 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>WiFi view</title>
+<style>
+  :root { --bg:#020b1a; --card:#06152b; --line:#12305a; --dim:#7f9bbd; --fg:#cfe8ff; --accent:#2ec4ff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:13px ui-monospace, Menlo, monospace; }
+  main { max-width:1150px; margin:0 auto; padding:28px; }
+  header { display:flex; justify-content:space-between; align-items:flex-end; gap:20px; flex-wrap:wrap; }
+  h1 { font:700 40px system-ui; margin:0; } h1 span { color:var(--accent); }
+  h1 span.off { color:#ff6b6b; }
+  .sub { color:var(--dim); text-align:right; line-height:1.5; }
+  .card { background:var(--card); border:1px solid var(--line); border-top:3px solid #4d8dff; border-radius:12px; padding:16px; margin-top:18px; }
+  .card h2 { margin:0 0 4px; font-size:14px; font-weight:600; }
+  .card p.d { margin:0 0 12px; color:var(--dim); font-size:12px; line-height:1.5; }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+  .tile { background:#04101f; border:1px solid var(--line); border-radius:8px; padding:10px 12px; min-width:0; }
+  .tile small { color:var(--dim); display:block; font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
+  .tile b { display:block; font:600 22px system-ui; color:#fff; margin:4px 0 2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tile i { font-style:normal; font-size:12px; color:var(--dim); }
+  .q-excellent{color:#4ade80!important} .q-good{color:#a3e635!important} .q-fair{color:#facc15!important}
+  .q-weak{color:#fb923c!important} .q-poor{color:#f87171!important}
+  .bar { height:4px; background:#0b2142; border-radius:2px; margin-top:6px; overflow:hidden; }
+  .bar > div { height:100%; background:linear-gradient(90deg,#1d4ed8,#2ec4ff,#fff); }
+  canvas { width:100%; display:block; border-radius:6px; background:#000; }
+  .toolbar { display:flex; gap:10px; align-items:center; justify-content:space-between; margin-bottom:8px; flex-wrap:wrap; }
+  select { background:#04101f; color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:3px 6px; font:inherit; }
+  .wfwrap { position:relative; }
+  .marker { position:absolute; top:0; bottom:0; border:1px solid #fff8; background:#fff1; pointer-events:none; border-radius:2px; }
+  .axis { display:grid; margin-top:4px; color:var(--dim); font-size:10px; text-align:center; }
+  .bands { display:flex; margin-top:2px; font-size:11px; color:var(--dim); }
+  .bands div { text-align:center; border-top:1px solid var(--line); padding-top:2px; }
+  .legend { display:flex; align-items:center; gap:8px; margin-top:10px; font-size:11px; color:var(--dim); }
+  .legend .grad { flex:0 0 220px; height:8px; border-radius:4px; }
+  #tip { position:fixed; pointer-events:none; background:#000d; border:1px solid var(--line); padding:4px 8px; border-radius:6px; display:none; font-size:12px; white-space:nowrap; z-index:5; }
+  .cols { display:grid; grid-template-columns:1fr 1fr; gap:18px; } @media(max-width:900px){ .cols{grid-template-columns:1fr} }
+  table { width:100%; border-collapse:collapse; } th,td { text-align:left; padding:5px 6px; border-bottom:1px solid #0d2447; font-size:12px; }
+  th { color:var(--dim); font-weight:500; } tr.me td { background:#0f2a52; }
+  td .mini { display:inline-block; height:6px; border-radius:3px; vertical-align:middle; }
+  .cong { display:flex; align-items:flex-end; gap:2px; height:90px; }
+  .cong div { flex:1; background:#1d4ed8; border-radius:2px 2px 0 0; min-height:2px; position:relative; }
+  .cong div.me { background:#2ec4ff; }
+  .rec { margin-top:10px; color:var(--fg); line-height:1.6; } .rec b { color:var(--accent); }
+  details { color:var(--dim); line-height:1.6; font-size:12px; } summary { cursor:pointer; color:var(--fg); }
+  .note { margin-top:8px; padding:8px 10px; background:#2a1d05; border:1px solid #6b4a0f; color:#fbbf24; border-radius:6px; font-size:12px; display:none; }
+</style>
+<main>
+  <header>
+    <h1>My WiFi, <span id="state">connecting…</span></h1>
+    <div class="sub"><div id="hdr1">–</div><div id="hdr2">–</div></div>
+  </header>
+  <div class="note" id="note"></div>
+
+  <div class="card">
+    <h2>Your connection</h2>
+    <p class="d">Live stats for the access point you're connected to.</p>
+    <div class="tiles">
+      <div class="tile"><small>Signal</small><b id="t-rssi">–</b><i id="t-rssiq">–</i><div class="bar"><div id="t-rssibar" style="width:0"></div></div></div>
+      <div class="tile"><small>Signal-to-noise</small><b id="t-snr">–</b><i id="t-snrq">noise –</i><div class="bar"><div id="t-snrbar" style="width:0"></div></div></div>
+      <div class="tile"><small>Link speed</small><b id="t-rate">–</b><i>Mbps negotiated (max)</i></div>
+      <div class="tile"><small>Channel</small><b id="t-ch">–</b><i id="t-chi">–</i></div>
+      <div class="tile"><small>Band</small><b id="t-band">–</b><i id="t-width">–</i></div>
+      <div class="tile"><small>Standard</small><b id="t-phy">–</b><i id="t-phyi">–</i></div>
+      <div class="tile"><small>Security</small><b id="t-sec">–</b><i id="t-country">–</i></div>
+      <div class="tile"><small>Network</small><b id="t-ssid">–</b><i id="t-bssid">–</i></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="toolbar">
+      <div><h2>Signal over time</h2>
+        <p class="d" style="margin:0">Your connected AP's signal strength. Higher line = stronger. Strip below is the same data as a heatmap.</p></div>
+      <label>Window <select id="win"><option value="30">30 s</option><option value="60" selected>1 min</option><option value="300">5 min</option></select></label>
+    </div>
+    <canvas id="line" style="height:170px"></canvas>
+    <div class="tiles" style="margin-top:10px;grid-template-columns:repeat(4,1fr)">
+      <div class="tile"><small>Now</small><b id="s-now">–</b></div>
+      <div class="tile"><small>Min</small><b id="s-min">–</b></div>
+      <div class="tile"><small>Average</small><b id="s-avg">–</b></div>
+      <div class="tile"><small>Max</small><b id="s-max">–</b></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Spectrum waterfall — every channel, newest at top</h2>
+    <p class="d">Each row is one scan of all nearby networks. Each column is a WiFi channel. Bright = a strong network on that channel; dark = quiet. The outlined column is the channel you're on. Hover for details.</p>
+    <div class="wfwrap" id="wfwrap">
+      <canvas id="wf" style="height:300px"></canvas>
+      <div class="marker" id="mark" style="display:none"></div>
+    </div>
+    <div class="axis" id="axis"></div>
+    <div class="bands" id="bands"></div>
+    <div class="legend"><span>weak</span><div class="grad" id="grad"></div><span>strong</span><span id="legtxt" style="margin-left:12px"></span></div>
+  </div>
+
+  <div class="cols">
+    <div class="card">
+      <h2>Channel crowding</h2>
+      <p class="d">Access points seen per channel in the latest scan. Fewer networks on your channel = less interference.</p>
+      <div class="cong" id="cong"></div>
+      <div class="axis" id="congaxis"></div>
+      <div class="rec" id="rec">Waiting for first scan…</div>
+    </div>
+    <div class="card">
+      <h2>Nearby networks <span id="netcount" style="color:var(--dim);font-weight:400"></span></h2>
+      <p class="d">Access points from the latest scan, strongest first. One network can appear several times (2.4 + 5 GHz, mesh nodes).</p>
+      <div style="max-height:260px;overflow:auto"><table>
+        <thead><tr><th>Name</th><th>Ch</th><th>Band</th><th>Signal</th></tr></thead>
+        <tbody id="nets"></tbody></table></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <details><summary>How to read this</summary>
+      <b>Signal (dBm):</b> closer to 0 is stronger. −50 or better is excellent, −60 good, −70 fair, −80 weak.<br>
+      <b>SNR:</b> signal minus background noise. Above 25 dB is healthy; below 15 dB expect drops.<br>
+      <b>Link speed:</b> what your Mac and the router negotiated, not real throughput.<br>
+      <b>Channel width:</b> wider (80/160 MHz) is faster but overlaps more neighbours.<br>
+      <b>Resolution:</b> channel-level only. Per-subcarrier CSI heatmaps need ESP32-style hardware.<br>
+      <b>6 GHz networks</b> are not drawn in the waterfall.
+    </details>
+  </div>
+</main>
+<div id="tip"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);   // SSIDs are attacker-controlled
+const Q = new URLSearchParams(location.search);
+const dpr = devicePixelRatio || 1;
+
+const CH24 = [1,2,3,4,5,6,7,8,9,10,11,12,13];
+const CH5 = [36,40,44,48,52,56,60,64,100,104,108,112,116,120,124,128,132,136,140,144,149,153,157,161,165];
+const CHANNELS = [...CH24, ...CH5];
+const COL = new Map(CHANNELS.map((c, i) => [c, i]));
+const NCOL = CHANNELS.length;
+const MIN = -95, MAX = -30;
+
+const freq = (ch, band) => band === 1 || (!band && ch <= 14) ? (ch === 14 ? 2484 : 2407 + 5 * ch) : 5000 + 5 * ch;
+const bandName = b => ({1:'2.4 GHz',2:'5 GHz',3:'6 GHz'})[b] || '–';
+const widthName = w => ({1:'20 MHz',2:'40 MHz',3:'80 MHz',4:'160 MHz'})[w] || '–';
+const PHY = {1:['802.11a','Wi-Fi 2'],2:['802.11b','Wi-Fi 1'],3:['802.11g','Wi-Fi 3'],4:['802.11n','Wi-Fi 4'],5:['802.11ac','Wi-Fi 5'],6:['802.11ax','Wi-Fi 6'],7:['802.11be','Wi-Fi 7']};
+const SEC = {0:'Open',1:'WEP',2:'WPA',3:'WPA/WPA2',4:'WPA2',5:'WPA2/WPA3',6:'WEP',7:'WPA Enterprise',8:'WPA Enterprise',9:'WPA2 Enterprise',10:'Enterprise',11:'WPA3',12:'WPA3 Enterprise',13:'WPA3',14:'OWE',15:'OWE'};
+
+function quality(r) {
+  return r >= -50 ? ['Excellent','excellent'] : r >= -60 ? ['Good','good'] : r >= -70 ? ['Fair','fair'] : r >= -80 ? ['Weak','weak'] : ['Poor','poor'];
+}
+function snrQuality(s) { return s >= 40 ? 'excellent' : s >= 25 ? 'good' : s >= 15 ? 'fair' : s >= 10 ? 'weak' : 'poor'; }
+const pct = (v, lo, hi) => Math.max(0, Math.min(100, (v - lo) / (hi - lo) * 100));
+
+// dark blue -> cyan -> white
+function rgb(dbm) {
+  const v = Math.max(0, Math.min(1, (dbm - MIN) / (MAX - MIN)));
+  const r = v < 0.7 ? 0 : (v - 0.7) / 0.3 * 255;
+  const g = v < 0.7 ? v / 0.7 * 190 : 190 + (v - 0.7) / 0.3 * 65;
+  const b = 30 + Math.min(1, v / 0.7) * 205;
+  return `rgb(${r|0},${g|0},${b|0})`;
+}
+$('grad').style.background = `linear-gradient(90deg,${[-90,-75,-60,-45,-30].map(rgb).join(',')})`;
+$('legtxt').textContent = `${MIN} … ${MAX} dBm`;
+
+function sizeCanvas(c) { c.width = Math.round(c.clientWidth * dpr); c.height = Math.round(c.clientHeight * dpr); }
+
+// ---------- static axis under waterfall ----------
+$('axis').style.gridTemplateColumns = `repeat(${NCOL},1fr)`;
+$('axis').innerHTML = CHANNELS.map(c => `<span>${c}</span>`).join('');
+$('bands').innerHTML =
+  `<div style="width:${CH24.length / NCOL * 100}%">2.4 GHz</div><div style="width:${CH5.length / NCOL * 100}%">5 GHz</div>`;
+$('congaxis').style.gridTemplateColumns = `repeat(${NCOL},1fr)`;
+// card is narrow: label only a few channels so digits don't run together
+$('congaxis').innerHTML = CHANNELS.map(c => `<span style="white-space:nowrap;overflow:visible">${[1, 6, 11, 36, 100, 149, 165].includes(c) ? c : ''}</span>`).join('');
+
+// ---------- waterfall ----------
+const wf = $('wf'), wx = wf.getContext('2d');
+sizeCanvas(wf);
+const ROW = Math.max(1, Math.round((+Q.get('row') || 6) * dpr));
+const cellW = wf.width / NCOL;
+const rows = [];                          // newest first: Map(ch -> {rssi, ssid})
+const ROWS_MAX = Math.ceil(wf.height / ROW);
+wx.fillStyle = '#000'; wx.fillRect(0, 0, wf.width, wf.height);
+
+function onScan(nets) {
+  wx.drawImage(wf, 0, ROW);
+  wx.fillStyle = '#000'; wx.fillRect(0, 0, wf.width, ROW);
+  const best = new Map();
+  for (const n of nets) {
+    if (!COL.has(n.channel) || n.band === 3) continue;
+    const cur = best.get(n.channel);
+    if (!cur || n.rssi > cur.rssi) best.set(n.channel, n);
+  }
+  for (const [ch, n] of best) {
+    wx.fillStyle = rgb(n.rssi);
+    wx.fillRect(COL.get(ch) * cellW, 0, cellW + 1, ROW);
+  }
+  rows.unshift({ t: Date.now() / 1000, best });
+  if (rows.length > ROWS_MAX) rows.pop();
+  latestNets = nets; renderNets(); renderCrowding();
+}
+
+wf.addEventListener('mousemove', e => {
+  const r = wf.getBoundingClientRect();
+  const col = Math.floor((e.clientX - r.left) / r.width * NCOL);
+  const row = Math.floor((e.clientY - r.top) / r.height * wf.height / ROW);
+  const ch = CHANNELS[col], data = rows[row];
+  const tip = $('tip');
+  if (ch == null || !data) { tip.style.display = 'none'; return; }
+  const n = data.best.get(ch), ago = Math.round(Date.now() / 1000 - data.t);
+  const f = freq(ch, ch <= 14 ? 1 : 2);
+  tip.innerHTML = `Ch ${ch} · ${f} MHz · ${n ? `<b>${n.rssi} dBm</b>${n.ssid ? ' · ' + esc(n.ssid) : ''}` : 'nothing seen'} · ${ago}s ago`;
+  tip.style.display = 'block'; tip.style.left = e.clientX + 12 + 'px'; tip.style.top = e.clientY + 12 + 'px';
+});
+wf.addEventListener('mouseleave', () => $('tip').style.display = 'none');
+
+// ---------- signal line chart ----------
+const lc = $('line'), lx = lc.getContext('2d');
+sizeCanvas(lc);
+const hist = [];                           // {t, rssi}
+function drawLine() {
+  const W = lc.width, H = lc.height, win = +$('win').value;
+  const padL = 40 * dpr, stripH = 14 * dpr, plotH = H - stripH - 6 * dpr, plotW = W - padL;
+  const now = Date.now() / 1000;
+  lx.clearRect(0, 0, W, H);
+  lx.font = `${10 * dpr}px ui-monospace, Menlo, monospace`; lx.textBaseline = 'middle';
+  const yOf = v => plotH - pct(v, -100, -20) / 100 * plotH;
+  const xOf = t => padL + (1 - (now - t) / win) * plotW;
+  for (const v of [-30, -50, -60, -70, -80, -90]) {
+    lx.strokeStyle = '#12305a'; lx.beginPath(); lx.moveTo(padL, yOf(v)); lx.lineTo(W, yOf(v)); lx.stroke();
+    lx.fillStyle = '#7f9bbd'; lx.fillText(v, 4 * dpr, yOf(v));
+  }
+  const pts = hist.filter(p => p.t >= now - win);
+  if (pts.length < 2) return;
+  const g = lx.createLinearGradient(0, 0, 0, plotH);
+  g.addColorStop(0, '#2ec4ff66'); g.addColorStop(1, '#2ec4ff00');
+  lx.beginPath(); lx.moveTo(xOf(pts[0].t), plotH);
+  pts.forEach(p => lx.lineTo(xOf(p.t), yOf(p.rssi)));
+  lx.lineTo(xOf(pts.at(-1).t), plotH); lx.closePath(); lx.fillStyle = g; lx.fill();
+  lx.beginPath(); pts.forEach((p, i) => i ? lx.lineTo(xOf(p.t), yOf(p.rssi)) : lx.moveTo(xOf(p.t), yOf(p.rssi)));
+  lx.strokeStyle = '#2ec4ff'; lx.lineWidth = 1.5 * dpr; lx.stroke();
+  // heat strip
+  for (let i = 0; i < pts.length; i++) {
+    const x0 = xOf(pts[i].t), x1 = i + 1 < pts.length ? xOf(pts[i + 1].t) : W;
+    lx.fillStyle = rgb(pts[i].rssi); lx.fillRect(x0, H - stripH, Math.max(1, x1 - x0 + 1), stripH);
+  }
+  lx.fillStyle = '#7f9bbd'; lx.textBaseline = 'alphabetic';
+  lx.fillText(`-${win}s`, padL, plotH + 4 * dpr + 0); lx.textAlign = 'right'; lx.fillText('now', W - 2, plotH + 4 * dpr); lx.textAlign = 'left';
+  const v = pts.map(p => p.rssi);
+  $('s-now').textContent = v.at(-1) + ' dBm';
+  $('s-min').textContent = Math.min(...v) + ' dBm';
+  $('s-max').textContent = Math.max(...v) + ' dBm';
+  $('s-avg').textContent = Math.round(v.reduce((a, b) => a + b) / v.length) + ' dBm';
+}
+$('win').onchange = drawLine;
+
+// ---------- connection tiles ----------
+let me = null, latestNets = [];
+function onRssi(m) {
+  me = m;
+  hist.push({ t: m.t, rssi: m.rssi });
+  while (hist.length && hist[0].t < m.t - 310) hist.shift();
+  const [ql, qc] = quality(m.rssi);
+  const snr = m.rssi - m.noise, sq = snrQuality(snr);
+  $('t-rssi').textContent = m.rssi + ' dBm'; $('t-rssi').className = 'q-' + qc;
+  $('t-rssiq').textContent = ql; $('t-rssibar').style.width = pct(m.rssi, -95, -30) + '%';
+  $('t-snr').textContent = snr + ' dB'; $('t-snr').className = 'q-' + sq;
+  $('t-snrq').textContent = `noise ${m.noise} dBm`; $('t-snrbar').style.width = pct(snr, 0, 60) + '%';
+  $('t-rate').textContent = Math.round(m.txRate);
+  const f = freq(m.channel, m.band);
+  $('t-ch').textContent = m.channel; $('t-chi').textContent = `${f} MHz`;
+  $('t-band').textContent = bandName(m.band); $('t-width').textContent = widthName(m.width) + ' wide';
+  const phy = PHY[m.phy] || ['–', ''];
+  $('t-phy').textContent = phy[1] || '–'; $('t-phyi').textContent = phy[0];
+  $('t-sec').textContent = SEC[m.security] ?? '–'; $('t-country').textContent = m.country ? `region ${m.country}` : ' ';
+  $('t-ssid').textContent = m.ssid || 'unknown'; $('t-bssid').textContent = m.bssid || (m.iface ? m.iface : ' ');
+  const granted = m.auth === 3 || m.auth === 4, note = $('note');
+  if (granted && m.ssid) note.style.display = 'none';
+  else {
+    note.style.display = 'block';
+    note.innerHTML = m.auth === 0
+      ? 'Waiting for Location permission. Click <b>Allow</b> on the macOS prompt so network names can be shown.'
+      : granted
+        ? 'Location is granted but macOS returned no names yet. Wait a few seconds or restart.'
+        : 'Network names are hidden by macOS. Enable your terminal app in <b>System Settings → Privacy &amp; Security → Location Services</b>, then restart. Everything else works without it.';
+  }
+  $('hdr1').textContent = `${m.ssid || 'WiFi'} · ${bandName(m.band)} · ch ${m.channel} · ${f} MHz`;
+  $('hdr2').textContent = `${ql} signal · ${latestNets.length} access points nearby`;
+  // channel marker
+  const idx = COL.get(m.channel), mk = $('mark');
+  if (idx == null) mk.style.display = 'none';
+  else { mk.style.display = 'block'; mk.style.left = idx / NCOL * 100 + '%'; mk.style.width = 100 / NCOL + '%'; }
+  drawLine(); renderNets(); renderCrowding();
+}
+
+// ---------- nearby networks + crowding ----------
+function renderNets() {
+  const list = [...latestNets].sort((a, b) => b.rssi - a.rssi);
+  $('netcount').textContent = list.length ? `(${list.length})` : '';
+  $('nets').innerHTML = list.slice(0, 40).map(n => {
+    const mine = me && n.channel === me.channel && n.rssi >= me.rssi - 3 && n.rssi <= me.rssi + 3;
+    const w = pct(n.rssi, -95, -30);
+    const name = n.ssid ? esc(n.ssid) : `<span style="color:var(--dim)">Unnamed AP${n.bssid ? ' · ' + n.bssid.slice(-8) : ''}</span>`;
+    return `<tr class="${mine ? 'me' : ''}"><td>${name}${mine ? ' ◀ you' : ''}</td>
+      <td>${n.channel}</td><td>${bandName(n.band)}</td>
+      <td><span class="mini" style="width:${w * 0.6}px;background:${rgb(n.rssi)}"></span> ${n.rssi}</td></tr>`;
+  }).join('');
+}
+
+function renderCrowding() {
+  if (!latestNets.length) return;
+  const count = new Map(CHANNELS.map(c => [c, 0]));
+  for (const n of latestNets) if (count.has(n.channel) && n.band !== 3) count.set(n.channel, count.get(n.channel) + 1);
+  const max = Math.max(1, ...count.values());
+  $('cong').innerHTML = CHANNELS.map(c =>
+    `<div class="${me && me.channel === c ? 'me' : ''}" style="height:${count.get(c) / max * 100}%" title="Ch ${c}: ${count.get(c)} AP(s)"></div>`).join('');
+  // recommend least crowded non-overlapping 2.4 (1/6/11) and any 5 GHz channel
+  const pick = arr => arr.reduce((a, b) => count.get(b) < count.get(a) ? b : a);
+  const b24 = pick([1, 6, 11]), b5 = pick(CH5.filter(c => c <= 48 || c >= 149));
+  const here = me ? count.get(me.channel) ?? 0 : null;
+  $('rec').innerHTML =
+    (here != null ? `You're on ch <b>${me.channel}</b> with <b>${here}</b> AP(s) on it. ` : '') +
+    `Quietest 2.4 GHz: ch <b>${b24}</b> (${count.get(b24)}). Quietest 5 GHz: ch <b>${b5}</b> (${count.get(b5)}).`;
+}
+
+// ---------- stream ----------
+const es = new EventSource('/events');
+es.onopen = () => { $('state').textContent = 'live'; $('state').className = ''; };
+es.onerror = () => { $('state').textContent = 'offline'; $('state').className = 'off'; };
+es.onmessage = e => {
+  const m = JSON.parse(e.data);
+  if (m.type === 'scan') onScan(m.nets); else if (m.type === 'rssi' && m.rssi) onRssi(m);
+};
+setInterval(drawLine, 1000);   // keep time axis scrolling even if data stalls
+</script>

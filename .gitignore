@@ -1,0 +1,8 @@
+scan
+server.log
+node_modules/
+.DS_Store
+.claude/
+graphify-out/
+.playwright-mcp/
+sim.log
