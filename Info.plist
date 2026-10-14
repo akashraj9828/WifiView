@@ -3,7 +3,13 @@
 <plist version="1.0">
 <dict>
   <key>CFBundleIdentifier</key><string>local.wifiview.scan</string>
-  <key>CFBundleName</key><string>wifiview-scan</string>
+  <key>CFBundleName</key><string>WifiviewScan</string>
+  <key>CFBundleDisplayName</key><string>WifiviewScan</string>
+  <key>CFBundleExecutable</key><string>scan</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleVersion</key><string>1</string>
+  <key>CFBundleShortVersionString</key><string>1.0</string>
+  <key>LSUIElement</key><true/>
   <key>NSLocationUsageDescription</key>
   <string>wifiview needs Location access so macOS will reveal the names of nearby WiFi networks.</string>
   <key>NSLocationAlwaysUsageDescription</key>

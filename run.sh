@@ -15,11 +15,14 @@ if [[ $SIM -eq 0 ]]; then
   if ! command -v swiftc >/dev/null; then
     echo "swiftc not found. Run: xcode-select --install"; exit 1
   fi
-  if [[ ! -x scan || scan.swift -nt scan || Info.plist -nt scan ]]; then
-    echo "Building scanner..."
-    swiftc -O -o scan scan.swift \
-      -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker Info.plist
-    codesign --force --sign - scan >/dev/null 2>&1 || true
+  APP=WifiviewScan.app
+  BIN="$APP/Contents/MacOS/scan"
+  if [[ ! -x "$BIN" || scan.swift -nt "$BIN" || Info.plist -nt "$BIN" ]]; then
+    echo "Building scanner app..."
+    mkdir -p "$APP/Contents/MacOS"
+    swiftc -O -o "$BIN" scan.swift
+    cp Info.plist "$APP/Contents/Info.plist"
+    codesign --force --deep --sign - "$APP" >/dev/null 2>&1 || true
   fi
 fi
 

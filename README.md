@@ -37,10 +37,12 @@ Try it without WiFi access using fake data:
 
 macOS only reveals the names (SSIDs) of WiFi networks to apps that have Location access. Without it the page still works, but networks appear as "Unnamed AP".
 
-1. Run `./run.sh`. A macOS prompt asks for Location access for your terminal app. Click **Allow**.
-2. If you missed it, open **System Settings → Privacy & Security → Location Services**, turn on your terminal app (Terminal, iTerm, VS Code and so on), then restart `./run.sh`.
+`run.sh` builds the scanner as a small background app, `WifiviewScan.app`, so macOS can ask for permission for it directly:
 
-The page shows a banner whenever permission is missing. Location data is not read or stored, and the permission is only what macOS requires to unlock network names.
+1. Run `./run.sh`. A macOS prompt asks to allow **WifiviewScan** to use your location. Click **Allow**.
+2. If you missed it, open **System Settings → Privacy & Security → Location Services**, turn on **WifiviewScan**, then restart `./run.sh`.
+
+The page shows a banner whenever permission is missing. Location data is not read or stored. The permission is only what macOS requires to unlock network names.
 
 ## Options
 
@@ -60,13 +62,13 @@ Page options: `http://127.0.0.1:3000/?row=2` makes waterfall rows 2 px tall (def
 ## How it works
 
 ```
-scan (Swift, CoreWLAN)  --JSON lines-->  server.js (Node)  --SSE /events-->  index.html (canvas)
+WifiviewScan.app (Swift, CoreWLAN)  --JSON lines via FIFO-->  server.js (Node)  --SSE /events-->  index.html (canvas)
 ```
 
 - `scan.swift`: polls the connected AP's RSSI and noise, and runs full scans of nearby networks. Requests Location access so names are visible.
-- `server.js`: spawns `scan` and forwards each line to browsers over Server-Sent Events. `--sim` generates fake data instead.
+- `server.js`: launches the scanner app with `open` (it writes JSON lines to a named pipe in your temp folder) and forwards each line to browsers over Server-Sent Events. `--sim` generates fake data instead.
 - `index.html`: the whole UI, no build step.
-- `Info.plist`: embedded into the `scan` binary at build time so macOS can show a Location prompt.
+- `Info.plist`: becomes the app bundle's plist (`WifiviewScan.app`) so macOS can show a Location prompt.
 - `run.sh`: builds, starts and opens everything.
 
 ## Limits
@@ -82,4 +84,5 @@ scan (Swift, CoreWLAN)  --JSON lines-->  server.js (Node)  --SSE /events-->  ind
 - **Port busy:** `PORT=3001 ./run.sh`, or stop the old server with `pkill -f "node server.js"`.
 - **Page says offline:** the server stopped. Check the terminal output.
 - **`no wifi interface`:** your Mac has WiFi turned off or no WiFi hardware.
-- **Names still missing after allowing:** restart `./run.sh` and make sure you enabled the terminal app you're running it from.
+- **Names still missing after allowing:** restart `./run.sh` and make sure **WifiviewScan** is enabled under Location Services.
+- **Scanner app exits right away:** check `$TMPDIR/wifiview-scan.err` for its error output.

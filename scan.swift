@@ -1,3 +1,4 @@
+import AppKit
 import CoreLocation
 import CoreWLAN
 import Foundation
@@ -83,4 +84,6 @@ Thread.detachNewThread {
     }
 }
 
-RunLoop.main.run()
+// Run as an accessory app (no Dock icon) so macOS can show the Location prompt for this bundle.
+NSApplication.shared.setActivationPolicy(.accessory)
+NSApplication.shared.run()

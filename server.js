@@ -3,7 +3,8 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { spawn } = require('child_process');
+const os = require('os');
+const { spawn, execFileSync } = require('child_process');
 
 const PORT = process.env.PORT || 3000;
 const SIM = process.argv.includes('--sim');
@@ -14,11 +15,27 @@ function broadcast(line) {
 }
 
 function startScanner() {
-  const bin = path.join(__dirname, 'scan');
+  // The scanner runs as a real .app launched via LaunchServices (`open`) so macOS can show its
+  // Location prompt. A .app can't pipe stdout to us, so it writes to a FIFO that we read.
+  const app = path.join(__dirname, 'WifiviewScan.app');
+  const fifo = path.join(os.tmpdir(), `wifiview-${process.pid}.fifo`);
+  const errLog = path.join(os.tmpdir(), 'wifiview-scan.err');
+  try { fs.unlinkSync(fifo); } catch {}
+  execFileSync('mkfifo', [fifo]);
+  const cleanup = () => { try { fs.unlinkSync(fifo); } catch {} };
+  process.on('exit', cleanup);
+  for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => process.exit(0));
+
   // RSSI_MS: connected-AP poll interval (default 250). SCAN_GAP_MS: pause between full scans (default 1000).
-  const p = spawn(bin, [], { stdio: ['ignore', 'pipe', 'inherit'], env: process.env });
+  const args = ['-n', '-g', '-W', '-a', app, '--stdout', fifo, '--stderr', errLog];
+  for (const k of ['RSSI_MS', 'SCAN_GAP_MS']) if (process.env[k]) args.push('--env', `${k}=${process.env[k]}`);
+  const p = spawn('open', args, { stdio: 'ignore' });
+  p.on('exit', (c) => { console.error(`scanner app exited (${c}); see ${errLog}`); process.exit(1); });
+
+  // When this server dies the FIFO reader closes, the app gets SIGPIPE on its next write and quits.
   let buf = '';
-  p.stdout.on('data', (d) => {
+  const rs = fs.createReadStream(fifo, { encoding: 'utf8' });
+  rs.on('data', (d) => {
     buf += d;
     let i;
     while ((i = buf.indexOf('\n')) >= 0) {
@@ -27,7 +44,7 @@ function startScanner() {
       if (line) broadcast(line);
     }
   });
-  p.on('exit', (c) => { console.error(`scanner exited (${c})`); process.exit(1); });
+  rs.on('end', () => { console.error(`scanner stopped; see ${errLog}`); process.exit(1); });
 }
 
 function startSim() {
